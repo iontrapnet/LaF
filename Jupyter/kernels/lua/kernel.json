@@ -1,0 +1,8 @@
+{
+ "argv": [
+  "itorch_launcher.cmd",
+  "{connection_file}"
+ ],
+ "display_name": "lua",
+ "language": "lua"
+}

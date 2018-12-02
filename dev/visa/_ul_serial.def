@@ -1,0 +1,4 @@
+LIBRARY _ul_serial.dll
+
+EXPORTS
+luaopen__ul_serial

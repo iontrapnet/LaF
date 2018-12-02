@@ -1,0 +1,27 @@
+{
+  // Path to the directory containing lua-complete executables
+  // if installed everywhere, just "lua-complete" should be fine
+  "path": "D:\\Laf\\IDE\\lua\\lua-complete.cmd",
+
+  // Port to use for the lua-complete client and server
+  "port": 51371,
+
+   "readline": true,
+  // enable/disable toggle. it is enabled by default 
+  // set it to false to turn off LuaComplete
+  // and restart Sublime Text for it to take affect
+  // "enabled": true,
+  // NOTE: it can also be enabled/disabled via the command palette 
+  // but will only stick until the next Sublime Text reboot
+
+  // additional include location
+  // by default lua-complete will search lua's regular 
+  // installed module paths (packages.path)
+  // 
+  // The LuaComplete plugin will send the currently
+  // open folder in the sublime text view for analysis
+  // 
+  // Additional include locations can be specified in a
+  // semi-colon delimited list below (be sure to comment out the line below)
+  // "additional_includes": "/my/random/file/path;/another/path"
+}

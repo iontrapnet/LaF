@@ -1,0 +1,1 @@
+{"version": "0.0.2", "dependencies": [], "url": "https://github.com/FourierTransformer/LuaComplete-Sublime", "sublime_text": ">=3000", "description": "A Sublime Text 3 plugin for the lua-complete engine", "platforms": ["*"]}

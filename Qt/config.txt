@@ -1,0 +1,11 @@
+{
+  "state": 2,
+  "toolbar": true,
+  "statusbar": true,
+  "openlast": true,
+  "encoding": "binary",
+  "font": "Courier New",
+  "fontsize": 10,
+  "tabstopwidth": 30,
+  "lastfile": "D:\\Server\\node-qt\\demo_editor_v03\\data\\SimpleEdit.js"
+}

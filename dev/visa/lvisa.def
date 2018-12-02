@@ -1,0 +1,4 @@
+LIBRARY lvisa.dll
+
+EXPORTS
+luaopen_lvisa

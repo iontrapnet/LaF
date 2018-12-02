@@ -1,0 +1,3 @@
+require 'LabVIEW'
+
+require 'os'
