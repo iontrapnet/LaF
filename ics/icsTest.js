@@ -112,7 +112,7 @@ function getVoltage(ch) {
 icsConnect.onRefresh = function (data,id) {
     switch(data.i) {
     case 'Status.voltageMeasure':
-        var ch = data.p.c;
+        var ch = data.p.a + '-' + data.p.c;
         var v = parseFloat(data.v);
         LV.CtrlSetValue(ctrls['Vact '+ch],v,null);
         if (!voltages[ch]) {
