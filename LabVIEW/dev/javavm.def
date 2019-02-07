@@ -1,0 +1,4 @@
+LIBRARY javavm.dll
+
+EXPORTS
+luaopen_javavm

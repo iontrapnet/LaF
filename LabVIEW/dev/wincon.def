@@ -1,0 +1,4 @@
+LIBRARY wincon.dll
+
+EXPORTS
+wincon
