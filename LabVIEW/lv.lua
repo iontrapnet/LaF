@@ -6,7 +6,12 @@ pprint = require'pprint'
 pprint.defaults.show_all=true
 pprint.defaults.use_tostring=true
 
-__dir = debug.getinfo(1).source:gsub('/','\\'):match'@(.*)\\.*$' or io.popen'cd':read'*l'
+if type(arg[1]) == 'string' then
+    __file = arg[1]:sub(arg[1]:find(' %- ')+3)
+else
+    __file = debug.getinfo(1).source:sub(2)
+end
+__dir = __file:gsub('/','\\'):match'(.*)\\.*$' or io.popen'cd':read'*l'
 function vipath(path)
     if path ~= '' and path:sub(-3) ~= '.vi' then path = __dir..[[\vi\]]..path..'.vi' end
     return path
@@ -53,10 +58,10 @@ ilua.set_writer(write)
 ilua.set_reader(read)
 
 function test()
-local r = coroutine.yield(vipath'Test.lua','call')
-pprint(r)
 local vi = loadvi[[C:\Desktop\CurrentTimeString.vi]]
 pprint(vi)
+local r = coroutine.yield({{1,2},{3,4},__tolv='array'},vipath'Test.lua','call')
+pprint(r)
 pprint(callvi(vi,{},{},{'date/time string'}))
 local ctrls = GetAllCtrls(vi)
 pprint(ctrls)
