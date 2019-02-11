@@ -2,7 +2,7 @@ if not ... then require'luastate_test'; return end
 
 require'lua51_h'
 local ffi = require'ffi'
-local C = ffi.load'lua51.dll'--ffi.C
+local C = ffi.load'libluajit.dll'--ffi.C
 local M = {C = C}
 local cast = ffi.cast
 

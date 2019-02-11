@@ -6,6 +6,38 @@
 #include "lualib.h"
 #include "lauxlib.h"
 
+#if defined(LUA_OK)
+int luaopen_eris(lua_State*);
+
+static const luaL_Reg loadedlibs[] = {
+  {"_G", luaopen_base},
+  {"package", luaopen_package},
+  {"coroutine", luaopen_coroutine},
+  {"table", luaopen_table},
+  {"io", luaopen_io},
+  {"os", luaopen_os},
+  {"string", luaopen_string},
+  {"math", luaopen_math},
+  {"utf8", luaopen_utf8},
+  {"debug", luaopen_debug},
+  {"bit32", luaopen_bit32},
+  {"eris", luaopen_eris},
+  {NULL, NULL}
+};
+
+LUALIB_API void luaL_openlibs (lua_State *L) {
+  const luaL_Reg *lib;
+  for (lib = loadedlibs; lib->func; lib++) {
+    luaL_requiref(L, lib->name, lib->func, 1);
+    lua_pop(L, 1);
+  }
+}
+#else
+#define LUA_OK 0
+#define lua_writestringerror(s,p) \
+        (fprintf(stderr, (s), (p)), fflush(stderr))
+#endif
+
 static lua_State *globalL = NULL;
 
 static void lstop (lua_State *L, lua_Debug *ar) {
@@ -99,6 +131,9 @@ int main(int argc, const char** argv) {
     lua_State *L = luaL_newstate();
     if (L == NULL) return -1;
     luaL_openlibs(L);
+#ifndef _WIN32
+    luaL_dostring(L, "package.path=package.path..';./lua/?.lua;./lua/?/init.lua'");
+#endif
     createargtable(L, argv, argc, argc > 1 ? 1 : 0);
     if (argc > 1) {
         if (argv[1][0] == '=')

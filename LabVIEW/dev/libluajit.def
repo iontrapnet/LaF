@@ -1,6 +1,11 @@
-LIBRARY lua51.dll
+LIBRARY libluajit.dll
 
 EXPORTS
+luaJIT_profile_dumpstack
+luaJIT_profile_start
+luaJIT_profile_stop
+luaJIT_setmode
+luaJIT_version_2_1_0_beta2
 luaL_addlstring
 luaL_addstring
 luaL_addvalue
@@ -126,7 +131,9 @@ lua_yield
 luaopen_base
 luaopen_bit
 luaopen_debug
+luaopen_ffi
 luaopen_io
+luaopen_jit
 luaopen_math
 luaopen_os
 luaopen_package

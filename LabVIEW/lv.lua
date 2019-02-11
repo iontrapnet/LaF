@@ -58,17 +58,18 @@ ilua.set_writer(write)
 ilua.set_reader(read)
 
 function test()
-local vi = loadvi[[C:\Desktop\CurrentTimeString.vi]]
-pprint(vi)
+local vi = loadvi'CurrentTimeString'
+write(pprint.pformat(vi)..'\n')
 local r = coroutine.yield({{1,2},{3,4},__tolv='array'},vipath'Test.lua','call')
-pprint(r)
-pprint(callvi(vi,{},{},{'date/time string'}))
+write(pprint.pformat(r)..'\n')
+r = callvi(vi,{},{},{'date/time string'})
+write(pprint.pformat(r)..'\n')
 local ctrls = GetAllCtrls(vi)
-pprint(ctrls)
+write(pprint.pformat(ctrls)..'\n')
 local ctrl = ctrls['date/time string']
-pprint(CtrlGetValue(ctrl))
-
---write(coroutine.yield('hehe','test')..'\n')
+r = CtrlGetValue(ctrl)
+write(pprint.pformat(r)..'\n')
+write(coroutine.yield('hehe','test')..'\n')
 ctrls = GetAllCtrls(loadvi'')
 while ctrl ~= 'Run' do
     ctrl = coroutine.yield('event')

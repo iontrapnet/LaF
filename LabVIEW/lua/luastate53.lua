@@ -2,7 +2,7 @@ if not ... then require'luastate_test'; return end
 
 require'lua53_h'
 local ffi = require'ffi'
-local C = ffi.load'lua53.dll'--ffi.C
+local C = ffi.load'libjnlua-5.3-windows-amd64.dll'--ffi.C
 local M = {C = C}
 local cast = ffi.cast
 
@@ -70,6 +70,7 @@ local lib_openers = {
 	bit32 = C.luaopen_bit32,
 	math = C.luaopen_math,
 	debug = C.luaopen_debug,
+	--jnlua extensions
 	eris = C.luaopen_eris,
 }
 
