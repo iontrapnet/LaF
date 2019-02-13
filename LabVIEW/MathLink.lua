@@ -8,9 +8,9 @@ ffi.cdef(header:read('*all'))
 header:close()
 
 if ffi.arch == 'x86' then
-    ml = 'ml32i4.dll'
+    ml = 'ml32i4'
 else
-    ml = 'ml64i4.dll'
+    ml = 'ml64i4'
 end
 ml = ffi.load(ml)
 
@@ -447,8 +447,9 @@ if arg and #arg > 0 then
     ml.MLPutSymbol(mlp, 'End')
     ml.MLFlush(mlp)
 else
-    mldir = [[C:\Software\Mathematica\]]
-    mlarg = "-linklaunch -linkname '"..mldir.."math.exe'"
+    --mldir = [[C:\Software\Mathematica\]]
+    mldir = [[/home/zx/bin/]]
+    mlarg = "-linklaunch -linkname '"..mldir.."math'"
     mlp = ml.MLOpenString(mlenv, mlarg, err)
     ml.MLConnect(mlp)
 end

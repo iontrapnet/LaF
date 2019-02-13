@@ -14,19 +14,28 @@ typedef unsigned __int64 uint64;
 #define real32 float
 #define real64 double
 
-static FILE *log;
+static FILE *stdlog = 0;
+
+//#define LOG(...) fprintf(stdlog,__VA_ARGS__)
 
 #ifdef _WIN32
+#define DLL __declspec(dllexport)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
-void logtime(const char *s) {
+#ifdef LOG
+static void logtime() {
 	SYSTEMTIME t;
     //GetSystemTime(&t);
 	GetLocalTime(&t);
-    fprintf(log,"%04d-%02d-%02d %02d:%02d:%02d.%03d%s",
+    LOG("[%04d-%02d-%02d %02d:%02d:%02d.%03d]",
 		t.wYear, t.wMonth, t.wDay,
-        t.wHour, t.wMinute, t.wSecond, t.wMilliseconds,s);
+        t.wHour, t.wMinute, t.wSecond, t.wMilliseconds);
 }
-#define DLL __declspec(dllexport)
+#else
+#define logtime()
+#endif
 #ifdef _WIN64
 typedef uint64 ptr_t;
 #include "../64/include/dyncall.h"
@@ -42,6 +51,17 @@ typedef uint32 ptr_t;
 #endif
 #else
 #define DLL
+static void logtime() {
+	time_t now;
+	struct tm *tm_now;
+ 
+	time(&now);
+	tm_now = localtime(&now);
+ 
+    LOG("[%04d-%02d-%02d %02d:%02d:%02d]",
+		1900+tm_now->tm_year, tm_now->tm_mon, tm_now->tm_mday,
+		tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec);
+}
 #endif
 
 #ifdef __cplusplus
@@ -51,14 +71,29 @@ typedef uint32 ptr_t;
 #endif
 #define API EXTERNC DLL
 
+#ifdef LOG
+static void lograw(const char* prefix, byte* bytes, int size) {
+	int i;
+	logtime();
+	LOG("%s[%d]",prefix,size);
+	for (i = 0; i < size; ++i) LOG("%02X ", bytes[i]);
+	LOG("\n");
+}
+#else
+#define lograw(...)
+#define LOG(...)
+#endif
+
 static DCCallVM *vm = 0;
 API DCCallVM* dlld_init(int size, int mode) {
+	stdlog = fopen("dlld.log","a"); setbuf(stdlog, NULL);
 	vm = dcNewCallVM(size);
 	dcMode(vm, mode);
 	return vm;
 }
 
 API void dlld_exit() {
+	fclose(stdlog);
 	dcFree(vm);
 }
 
@@ -67,47 +102,47 @@ API void* dlld_funcs[256] = {memcpy, dlLoadLibrary, dlFindSymbol, dlFreeLibrary}
 API byte* dlld_call(byte *args, int *len) {
 	static void *bufs[256];
 	static int sizes[256];
-	static bool alloc[256];
+	static char alloc[256];
     ptr_t func = *(ptr_t*)args;
 	int argc = 1 + *(args += sizeof(ptr_t)), bufc = -1, odd = 0, type = 0, size = 0, i;
 	byte *argv = (++args) + (argc >> 1) + (argc & 1), *ret = 0;
 
-	logtime(": ");
-	fprintf(log,"%p(",func);
+	logtime();
+	LOG(": %p(",func);
 	if (func < 256) func = (ptr_t)dlld_funcs[func];
-
+	
 	dcReset(vm);
  	while (--argc) {
 #define TYPE_DECODE type = odd ? ((0xF0 & *args) >> 4) : (0xF & *args)
 		TYPE_DECODE;
-		fprintf(log,"[%d]",type);
+		LOG("[%d]",type);
 		switch (type) {
 		case 0x0:
-			fprintf(log,"%c,",*(DCchar*)argv);
+			LOG("%c,",*(DCchar*)argv);
 			dcArgChar(vm, *(DCchar*)argv); argv += 1;
 			break;
 		case 0x1:
-			fprintf(log,"%hd,",*(DCshort*)argv);
+			LOG("%hd,",*(DCshort*)argv);
 			dcArgShort(vm, *(DCshort*)argv); argv += 2;
 			break;
 		case 0x2:
-			fprintf(log,"%d,",*(DCint*)argv);
+			LOG("%d,",*(DCint*)argv);
 			dcArgInt(vm, *(DCint*)argv); argv += 4;
 			break;
 		case 0x3:
-			fprintf(log,"%lld,",*(DClonglong*)argv);
+			LOG("%lld,",*(DClonglong*)argv);
 			dcArgLongLong(vm, *(DClonglong*)argv); argv += 8;
 			break;
 		case 0x4:
-			fprintf(log,"%f,",*(DCfloat*)argv);
+			LOG("%f,",*(DCfloat*)argv);
 			dcArgFloat(vm, *(DCfloat*)argv); argv += 4;
 			break;
 		case 0x5:
-			fprintf(log,"%lf,",*(DCdouble*)argv);
+			LOG("%lf,",*(DCdouble*)argv);
 			dcArgDouble(vm, *(DCdouble*)argv); argv += 8;
 			break;
 		case 0x6: // \0 terminated string
-			fprintf(log,"\"%s\",",argv);
+			LOG("\"%s\",",argv);
 			dcArgPointer(vm, (DCpointer)argv); argv += strlen((const char*)argv) + 1;
 			break;
 		case 0x7: // byte[]: {in,out,in+out} x {size=1,size<256,other}
@@ -120,29 +155,29 @@ API byte* dlld_call(byte *args, int *len) {
 			dcArgPointer(vm, (DCpointer)(argv + 4)); argv += 4 + *(uint32*)argv;
 			break;
 		case 0xA:
-			bufs[++bufc] = malloc(1); sizes[bufc] = 1; alloc[bufc] = true;
+			bufs[++bufc] = malloc(1); sizes[bufc] = 1; alloc[bufc] = 1;
 			dcArgPointer(vm, (DCpointer)bufs[bufc]);
 			break;
 		case 0xB:
-			bufs[++bufc] = malloc(*argv); sizes[bufc] = *argv; alloc[bufc] = true;
+			bufs[++bufc] = malloc(*argv); sizes[bufc] = *argv; alloc[bufc] = 1;
 			dcArgPointer(vm, (DCpointer)bufs[bufc]); argv += 1;
 			break;
 		case 0xC:
 			size = *(uint32*)argv;
-			bufs[++bufc] = malloc(size); sizes[bufc] = size; alloc[bufc] = true;
+			bufs[++bufc] = malloc(size); sizes[bufc] = size; alloc[bufc] = 1;
 			dcArgPointer(vm, (DCpointer)bufs[bufc]); argv += 4;
 			break;
 		case 0xD:
-			bufs[++bufc] = argv; sizes[bufc] = 1; alloc[bufc] = false;
+			bufs[++bufc] = argv; sizes[bufc] = 1; alloc[bufc] = 0;
 			dcArgPointer(vm, (DCpointer)argv); argv += 1;
 			break;
 		case 0xE:
-			bufs[++bufc] = argv + 1; sizes[bufc] = *argv; alloc[bufc] = false;
+			bufs[++bufc] = argv + 1; sizes[bufc] = *argv; alloc[bufc] = 0;
 			dcArgPointer(vm, (DCpointer)(argv + 1)); argv += 1 + *argv;
 			break;
 		case 0xF:
 			size = *(uint32*)argv;
-			bufs[++bufc] = argv + 4; sizes[bufc] = size; alloc[bufc] = false;
+			bufs[++bufc] = argv + 4; sizes[bufc] = size; alloc[bufc] = 0;
 			dcArgPointer(vm, (DCpointer)(argv + 4)); argv += 4 + size;
 			break;
 		}
@@ -151,38 +186,38 @@ API byte* dlld_call(byte *args, int *len) {
 	}
 
 	TYPE_DECODE;
-	fprintf(log,">[%d]",type);
-	ret = (byte*)malloc(8); alloc[++bufc] = true;
+	LOG(">[%d]",type);
+	ret = (byte*)malloc(8); alloc[++bufc] = 1;
 	switch (type) {
 		case 0:
 			*(DCchar*)ret = dcCallChar(vm, (DCpointer)func); size = 1;
-			fprintf(log,"%c)\n",*(DCchar*)ret);
+			LOG("%c)\n",*(DCchar*)ret);
 			break;
 		case 1:
 			*(DCshort*)ret = dcCallShort(vm, (DCpointer)func); size = 2;
-			fprintf(log,"%hd)\n",*(DCshort*)ret);
+			LOG("%hd)\n",*(DCshort*)ret);
 			break;
 		case 2:
 			*(DCint*)ret = dcCallInt(vm, (DCpointer)func); size = 4;
-			fprintf(log,"%d)\n",*(DCint*)ret);
+			LOG("%d)\n",*(DCint*)ret);
 			break;
 		case 3:
 			*(DClonglong*)ret = dcCallLongLong(vm, (DCpointer)func); size = 8;
-			fprintf(log,"%lld)\n",*(DClonglong*)ret);
+			LOG("%lld)\n",*(DClonglong*)ret);
 			break;
 		case 4:
 			*(DCfloat*)ret = dcCallFloat(vm, (DCpointer)func); size = 4;
-			fprintf(log,"%f)\n",*(DCfloat*)ret);
+			LOG("%f)\n",*(DCfloat*)ret);
 			break;
 		case 5:
 			*(DCdouble*)ret = dcCallDouble(vm, (DCpointer)func); size = 8;
-			fprintf(log,"%lf)\n",*(DCdouble*)ret);
+			LOG("%lf)\n",*(DCdouble*)ret);
 			break;
 		case 6:
-			free(ret); alloc[bufc] = false;
+			free(ret); alloc[bufc] = 0;
 			ret = (byte*)dcCallPointer(vm, (DCpointer)func);
 			size = strlen((const char*)ret) + 1;
-			fprintf(log,"\"%s\")\n",(const char*)ret);
+			LOG("\"%s\")\n",(const char*)ret);
 			break;
 	}
 
@@ -202,39 +237,31 @@ int main(int argc, char **argv) {
 	DCCallVM *vm = dlld_init(4096, 0);
 	byte *args = 0, *ret = 0;
 	int size = 0, i;
-	
-	log = fopen("dlld.txt","w");
 
 	_setmode(_fileno(stdin), _O_BINARY);
 	_setmode(_fileno(stdout), _O_BINARY);
 	_setmode(_fileno(stderr), _O_BINARY);
 	setvbuf(stdout, NULL, _IONBF, 0);
-	setbuf(stdout, NULL);
 
-	while (true) {
+	while (1) {
 		fread(&size,4,1,stdin);
 		if (size == 0) break;
-		logtime(": ");
-		fprintf(log,"<[%d]",size);
 		args = (byte*)malloc(size);
 		fread(args,size,1,stdin);
-		for (i = 0; i < size; ++i) fprintf(log, "%02X ", args[i]);
-		fprintf(log, "\n");
+		lograw(": <",args,size);
 		__try {
 			ret = dlld_call(args,&size);
 		} __except(1) {
-			return -1;	
+			LOG("<call error>\n");
+			dlld_exit();
+			return -1;
 		}
 		free(args);
-		logtime(": ");
-		fprintf(log,">[%d]",size);
-		for (i = 0; i < size; ++i) fprintf(log, "%02X ", ret[i]);
-		fprintf(log, "\n");
+		lograw(": >",ret,size);
 		fwrite(ret,size,1,stdout); //fflush(stdout);
 		free(ret);
 	}
 	
-	fclose(log);
 	dlld_exit();
 	return 0;
 }
