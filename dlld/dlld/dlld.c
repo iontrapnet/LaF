@@ -3,23 +3,11 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+#include "dlld.h"
 
-typedef unsigned char byte;
-typedef __int8 int8;
-typedef __int16 int16;
-typedef __int32 int32;
-typedef __int64 int64;
-typedef unsigned __int32 uint32;
-typedef unsigned __int64 uint64;
-#define real32 float
-#define real64 double
-
-static FILE *stdlog = 0;
-
-//#define LOG(...) fprintf(stdlog,__VA_ARGS__)
+FILE* stdlog = 0;
 
 #ifdef _WIN32
-#define DLL __declspec(dllexport)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -37,13 +25,11 @@ static void logtime() {
 #define logtime()
 #endif
 #ifdef _WIN64
-typedef uint64 ptr_t;
 #include "../64/include/dyncall.h"
 #include "../64/include/dynload.h"
 #pragma comment(lib,"../64/lib/libdyncall_s.lib")
 #pragma comment(lib,"../64/lib/libdynload_s.lib")
 #else
-typedef uint32 ptr_t;
 #include "../32/include/dyncall.h"
 #include "../32/include/dynload.h"
 #pragma comment(lib,"../32/lib/libdyncall_s.lib")
@@ -64,14 +50,7 @@ static void logtime() {
 }
 #endif
 
-#ifdef __cplusplus
-#define EXTERNC extern "C"
-#else
-#define EXTERNC
-#endif
-#define API EXTERNC DLL
-
-#ifdef LOG
+#ifdef _DEBUG
 static void lograw(const char* prefix, byte* bytes, int size) {
 	int i;
 	logtime();
@@ -81,15 +60,20 @@ static void lograw(const char* prefix, byte* bytes, int size) {
 }
 #else
 #define lograw(...)
+#endif
+
+#ifndef LOG
 #define LOG(...)
 #endif
 
 static DCCallVM *vm = 0;
-API DCCallVM* dlld_init(int size, int mode) {
-	stdlog = fopen("dlld.log","a"); setbuf(stdlog, NULL);
+API void dlld_init(int size, int mode) {
+	if (!stdlog) {
+		//stdlog = stderr;
+		stdlog = fopen("dlld.log","a"); setbuf(stdlog, NULL);
+	}
 	vm = dcNewCallVM(size);
 	dcMode(vm, mode);
-	return vm;
 }
 
 API void dlld_exit() {
@@ -99,20 +83,19 @@ API void dlld_exit() {
 
 API void* dlld_funcs[256] = {memcpy, dlLoadLibrary, dlFindSymbol, dlFreeLibrary};
 
-API byte* dlld_call(byte *args, int *len) {
+API byte* dlld_call(byte *args, int32 *len) {
 	static byte *bufs[256];
 	static int32 sizes[256], size;
 
-    ptr_t func = *(ptr_t*)args;
+	ptr_t func = *(ptr_t*)args;
 	int argc = 1 + *(args += sizeof(ptr_t)), bufc = -1, odd = 0, i;
-	byte *argv = (++args) + (argc >> 1) + (argc & 1), *ret = 0;
+	byte *ret = 0, *argv = (++args) + (argc >> 1) + (argc & 1);
 
-	logtime();
-	LOG(": %p(",func);
+	logtime(); LOG(": %p(",func);
 	if (func < 256) func = (ptr_t)dlld_funcs[func];
 	
 	dcReset(vm);
- 	while (--argc) {
+	while (--argc) {
 #define ARG_TYPE (odd ? ((0xF0 & *args) >> 4) : (0xF & *args))
 		switch (ARG_TYPE) {
 		case 0x0: // int8
@@ -236,6 +219,7 @@ API byte* dlld_call(byte *args, int *len) {
 			LOG("=)\n");
 			break;
 	}
+#undef ARG_TYPE
 
 	if (ret) {
 		bufs[++bufc] = ret; sizes[bufc] = size;
@@ -257,16 +241,251 @@ API byte* dlld_call(byte *args, int *len) {
 	return ret;
 }
 
+#ifdef DLLD_CALLF
+typedef union arg_t {
+	int8 b;
+	int16 h;
+	int32 i;
+	int64 w;
+	real32 f;
+	real64 d;
+	void *p;
+} arg_t;
+
+API int dlld_callf(ptr_t func, const char* proto, ...) {
+	static byte head[128], out[256];
+	static arg_t args[256];
+	static int32 sizes[256];
+
+	byte *buf = 0, *tmp = 0;
+	void *ret = 0;
+	int32 isize = sizeof(func), osize = 0, outc = -1, i = 0;
+	va_list vl;
+
+	va_start(vl,proto);
+	while (*proto != '=') {
+		int32 size;
+		switch (*proto) {
+#define ARG_TYPE(t) if(i&1) head[(i>>1)+1]|=(t<<4);else head[(i>>1)+1]=t
+		case '0':case 'b':
+			args[i].b = va_arg(vl,int8);
+			size = -1; ARG_TYPE(0x0);
+			break;
+		case '1':case 'h':
+			args[i].h = va_arg(vl,int16);
+			size = -2; ARG_TYPE(0x1);
+			break;
+		case '2':case 'i':
+			args[i].i = va_arg(vl,int32);
+			size = -4; ARG_TYPE(0x2);
+			break;
+		case '3':case 'w':
+			args[i].w = va_arg(vl,int64);
+			size = -8; ARG_TYPE(0x3);
+			break;
+		case '4':case 'f':
+			args[i].f = va_arg(vl,real32);
+			size = -4; ARG_TYPE(0x4);
+			break;
+		case '5':case 'd':
+			args[i].d = va_arg(vl,real64);
+			size = -8; ARG_TYPE(0x5);
+			break;
+		case '6':case 's':
+			args[i].p = va_arg(vl,void*);
+			if (!args[i].p) args[i].p = ""; 
+			size = strlen((const char*)args[i].p) + 1;
+			ARG_TYPE(0x6);
+			break;
+		case '*':
+			size = va_arg(vl,int32);
+			isize += 4;
+			switch (*(++proto)) {
+			case '1':case 'h':
+			size <<= 1; break;
+			case '2':case 'i':
+			case '4':case 'f':
+			size <<= 2; break;
+			case '3':case 'w':
+			case '5':case 'd':
+			size <<= 3; break;
+			break;
+			}
+			args[i].p = va_arg(vl,void*); ARG_TYPE(0x7);
+			out[++outc] = i; osize += size;
+			break;
+		case '&':
+			switch (*(++proto)) {
+			case '0':case 'b':
+			size = 1; ARG_TYPE(0x8); break;
+			case '1':case 'h':
+			size = 2; ARG_TYPE(0x9); break;
+			case '2':case 'i':
+			case '4':case 'f':
+			size = 4; ARG_TYPE(0xA); break;
+			case '3':case 'w':
+			case '5':case 'd':
+			size = 8; ARG_TYPE(0xB); break;
+			}
+			args[i].p = va_arg(vl,void*);
+			out[++outc] = i; osize += size;
+			break;
+		case 'B':
+			size = 1; ARG_TYPE(0x8);
+			args[i].p = va_arg(vl,void*);
+			out[++outc] = i; osize += size;
+			break;
+		case 'H':
+			size = 2; ARG_TYPE(0x9);
+			args[i].p = va_arg(vl,void*);
+			out[++outc] = i; osize += size;
+			break;
+		case 'I':case 'F':
+			size = 4; ARG_TYPE(0xA);
+			args[i].p = va_arg(vl,void*);
+			out[++outc] = i; osize += size;
+			break;
+		case 'W':case 'D':
+			size = 8; ARG_TYPE(0xB);
+			args[i].p = va_arg(vl,void*);
+			out[++outc] = i; osize += size;
+			break;
+		case '<':
+			size = va_arg(vl,int32);
+			switch (*(++proto)) {
+			case '1':case 'h':
+			size <<= 1; break;
+			case '2':case 'i':
+			case '4':case 'f':
+			size <<= 2; break;
+			case '3':case 'w':
+			case '5':case 'd':
+			size <<= 3; break;
+			break;
+			}
+			if (size < 256) {
+				isize += 1;
+				ARG_TYPE(0xC);
+			} else {
+				isize += 4;
+				ARG_TYPE(0xD);
+			}
+			args[i].p = va_arg(vl,void*);
+			break;
+		case '>':
+			size = va_arg(vl,int32);
+			switch (*(++proto)) {
+			case '1':case 'h':
+			size <<= 1; break;
+			case '2':case 'i':
+			case '4':case 'f':
+			size <<= 2; break;
+			case '3':case 'w':
+			case '5':case 'd':
+			size <<= 3; break;
+			break;
+			}
+			if (size < 256) {
+				isize += 1;
+				ARG_TYPE(0xE);
+			} else {
+				isize += 4;
+				ARG_TYPE(0xF);
+			}
+			args[i].p = va_arg(vl,void*);
+			out[++outc] = i; osize += size;
+			sizes[i] = size; size = 0;
+			break;
+		}
+		if (size) sizes[i] = size;
+		isize += size >= 0 ? size : -size;
+		++i; ++proto;
+	}
+	*head = i;
+	isize += 2 + (*head >> 1);
+
+	switch (*(++proto)) {
+	case '0':case 'b':
+	sizes[*head] = 1; ARG_TYPE(0x0);
+	break;
+	case '1':case 'h':
+	sizes[*head] = 2; ARG_TYPE(0x1);
+	break;
+	case '2':case 'i':
+	sizes[*head] = 4; ARG_TYPE(0x2);
+	break;
+	case '3':case 'w':
+	sizes[*head] = 8; ARG_TYPE(0x3);
+	break;
+	case '4':case 'f':
+	sizes[*head] = 4; ARG_TYPE(0x4);
+	break;
+	case '5':case 'd':
+	sizes[*head] = 8; ARG_TYPE(0x5);
+	break;
+	case '6':case 's':
+	sizes[*head] = -1; ARG_TYPE(0x6);
+	break;
+	default:
+	sizes[*head] = 0; ARG_TYPE(0x7);
+	break;
+	}
+	if (sizes[*head]) ret = va_arg(vl,void*);
+	va_end(vl);
+	osize += sizes[*head] >= 0 ? sizes[*head] : -sizes[*head];
+#undef ARG_TYPE
+
+	buf = (byte*)malloc(isize);
+	PUSH(buf,func);
+	PUSH_MEM(buf,head,2 + (*head >> 1));
+	for (i = 0; i < *head; ++i) {
+#undef ARG_TYPE
+#define ARG_TYPE(i) (i&1?((0xF0&head[(i>>1)+1])>>4):(0xF&head[(i>>1)+1]))
+		byte type = ARG_TYPE(i);
+		if (sizes[i] < 0) {
+			PUSH_MEM(buf,(byte*)(args + i),-sizes[i]);
+		} else {
+			if (type > 0xB && sizes[i] < 256) {
+				PUSH(buf,*(byte*)&sizes[i]);
+			} else if (type == 0x7 || type > 0xB) {
+				PUSH(buf,sizes[i]);
+			}
+			if (type < 0xE) {
+				PUSH_MEM(buf,(byte*)(args[i].p),sizes[i]);
+			}
+		}
+	}
+	buf -= isize;
+
+	lograw(": >",buf,isize);
+	tmp = buf;
+	buf = dlld_call(tmp,&osize);
+	free(tmp);
+	lograw(": <",buf,osize);
+	
+	for (i = 0; i <= outc; ++i) {
+		POP_MEM(buf,(byte*)(args[out[i]].p),sizes[out[i]]);
+	}
+	if (sizes[*head] == -1) {
+		POP_STR(buf,(char*)ret);
+	} else {
+		POP_MEM(buf,(byte*)ret,sizes[*head]);
+	}
+	buf -= osize; free(buf);
+	return 1;
+}
+#endif
+
 int main(int argc, char **argv) {
-	DCCallVM *vm = dlld_init(4096, 0);
 	byte *args = 0, *ret = 0;
-	uint32 size = 0, i;
+	int32 size = 0;
 
 	_setmode(_fileno(stdin), _O_BINARY);
 	_setmode(_fileno(stdout), _O_BINARY);
 	_setmode(_fileno(stderr), _O_BINARY);
 	setvbuf(stdout, NULL, _IONBF, 0);
 
+	dlld_init(4096,0);
 	while (1) {
 		fread(&size,sizeof(size),1,stdin);
 		if (size == 0) break;
@@ -282,10 +501,10 @@ int main(int argc, char **argv) {
 		}
 		free(args);
 		lograw(": >",ret,size);
+		fwrite(&size,sizeof(size),1,stdout);
 		fwrite(ret,size,1,stdout); //fflush(stdout);
 		free(ret);
 	}
-	
 	dlld_exit();
 	return 0;
 }

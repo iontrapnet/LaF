@@ -102,7 +102,7 @@ static void lograw(const char* prefix, byte* bytes, int size) {
 	int i;
 	logtime();
 	LOG("%s[%d]",prefix,size);
-	for (i = 0; i < size; ++i) LOG("%02X ", bytes[i]);
+	if (bytes) for (i = 0; i < size; ++i) LOG("%02X ", bytes[i]);
 	LOG("\n");
 }
 #else
@@ -113,8 +113,7 @@ static void lograw(const char* prefix, byte* bytes, int size) {
 	if ((expr) <= 0) {\
 	logtime();LOG(": <call error>\n");\
 	dllc_close();dllc_open(0,0);\
-	return 0;\
-	}
+	return 0;}
 
 API int dllc_write(const char *data, int size) {
 	int ret = 0;
@@ -405,42 +404,25 @@ API int dllc_callf(ptr_t func, const char* proto, ...) {
 		}
 	}
 	buf -= isize;
+
 	lograw(": >",buf,isize);
 	if (!dllc_write((const char*)(buf -= sizeof(isize)),sizeof(isize) + isize)) return 0;
-	
-	if (osize > isize) {
-		free(buf);
-		buf = (byte*)malloc(osize);
-	}
+	if (!dllc_read((char*)&isize,sizeof(isize))) return 0;
+	if (isize < osize || (isize > osize && sizes[*head] != -1)) return 0;
+	osize = isize;
+	if (osize > isize) { free(buf); buf = (byte*)malloc(osize); }
 	if (!dllc_read((char*)buf,osize)) return 0;
 	lograw(": <",buf,osize);
+
 	for (i = 0; i <= outc; ++i) {
 		POP_MEM(buf,(byte*)(args[out[i]].p),sizes[out[i]]);
 	}
-	
 	if (sizes[*head] == -1) {
-		i = *buf;
-		buf -= osize - 1;
-		*buf = i; i = 0;
-		if (isize > osize) osize = isize;
-		while (buf[i]) {
-			byte *tmp;
-			if (++i >= osize) {
-				tmp = buf;
-				buf = (byte*)malloc(osize << 1);
-				memcpy(buf,tmp,osize);
-				osize <<= 1;
-				free(tmp);
-			}
-			CHECK(recv(sock,(char*)(buf+i),1,0));
-		}
-		*(byte**)ret = buf;
+		POP_STR(buf,*(char**)ret);
 	} else {
-		memcpy(ret,buf,sizes[*head]);
-		buf -= osize - sizes[*head];
-		free(buf);
+		POP_MEM(buf,(byte*)ret,sizes[*head]);
 	}
-	
+	buf -= osize; free(buf);
 	return 1;
 }
 
