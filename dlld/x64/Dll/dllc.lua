@@ -16,6 +16,7 @@ int dllc_init(const char*,int);
 void dllc_exit();
 int dllc_open(const char*,int);
 void dllc_close();
+int dllc_print();
 int dllc_write(const char*,int);
 int dllc_read(char*,int);
 int dllc_load(const char*);

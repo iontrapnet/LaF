@@ -58,7 +58,6 @@ API void dlld_exit();
 API void* dlld_funcs[256];
 API byte* dlld_call(byte*,int32*);
 
-//#define DLLD_CALLF
-#ifdef DLLD_CALLF
+#ifdef _WINDLL
 API int dlld_callf(ptr_t,const char*,...);
 #endif

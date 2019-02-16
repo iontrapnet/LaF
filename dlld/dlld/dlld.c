@@ -241,7 +241,7 @@ API byte* dlld_call(byte *args, int32 *len) {
 	return ret;
 }
 
-#ifdef DLLD_CALLF
+#ifdef _WINDLL
 typedef union arg_t {
 	int8 b;
 	int16 h;
@@ -479,6 +479,7 @@ API int dlld_callf(ptr_t func, const char* proto, ...) {
 int main(int argc, char **argv) {
 	byte *args = 0, *ret = 0;
 	int32 size = 0;
+	char eof = 0;
 
 	_setmode(_fileno(stdin), _O_BINARY);
 	_setmode(_fileno(stdout), _O_BINARY);
@@ -501,6 +502,7 @@ int main(int argc, char **argv) {
 		}
 		free(args);
 		lograw(": >",ret,size);
+		fwrite(&eof,sizeof(eof),1,stdout);
 		fwrite(&size,sizeof(size),1,stdout);
 		fwrite(ret,size,1,stdout); //fflush(stdout);
 		free(ret);

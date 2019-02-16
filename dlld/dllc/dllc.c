@@ -41,7 +41,7 @@ static void logtime() {
 #define LOG(...)
 #endif
 
-static const char *HOST = 0;
+static const char *HOST = "127.0.0.1";
 static int PORT = 0;
 
 API int dllc_open(const char *host, int port) {
@@ -114,6 +114,25 @@ static void lograw(const char* prefix, byte* bytes, int size) {
 	logtime();LOG(": <call error>\n");\
 	dllc_close();dllc_open(0,0);\
 	return 0;}
+
+API int dllc_print() {
+	static char buf[1024];
+	int len;
+	char ret = 0;
+
+	while (1) {
+		CHECK(recv(sock,&ret,sizeof(ret),0));	
+		if (!ret) break;
+		if (ret == -1) {
+			gets(buf);
+			len = strlen(buf);
+			buf[len] = '\n';
+			CHECK(send(sock,buf,len+1,0));
+		} else
+			fputc(ret,stdlog);
+	}
+	return 1;
+}
 
 API int dllc_write(const char *data, int size) {
 	int ret = 0;
@@ -407,6 +426,7 @@ API int dllc_callf(ptr_t func, const char* proto, ...) {
 
 	lograw(": >",buf,isize);
 	if (!dllc_write((const char*)(buf -= sizeof(isize)),sizeof(isize) + isize)) return 0;
+	if (!dllc_print()) return 0;
 	if (!dllc_read((char*)&isize,sizeof(isize))) return 0;
 	if (isize < osize || (isize > osize && sizes[*head] != -1)) return 0;
 	osize = isize;
@@ -427,7 +447,7 @@ API int dllc_callf(ptr_t func, const char* proto, ...) {
 }
 
 int main(int argc, char **argv) {
-	const char *path = "msvcrt.dll", *name = "floor", *host = "127.0.0.1";
+	const char *path = "msvcrt.dll", *name = "floor", *host = 0;
 	uint32 lib = 0, func = 0, port = 0, size;
 	double d = 0., d0 = 0., *d1 = 0, *d2 = 0;
 	char *s = 0;

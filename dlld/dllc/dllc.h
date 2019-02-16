@@ -66,12 +66,14 @@ extern FILE* stdlog;
 #define CALL(buf,size)\
 	buf-=size;lograw(": >",buf,size);\
 	dllc_write((const char*)(buf-=sizeof(size)),sizeof(size)+size);\
-	free(buf);RET(size);lograw(": <",0,size)
+	free(buf);if (!dllc_print())return 0;\
+	RET(size);lograw(": <",0,size)
 
 #define CALL_RET(buf,isize,osize)\
 	buf-=isize;lograw(": >",buf,isize);\
 	dllc_write((const char*)(buf-=sizeof(isize)),sizeof(isize)+isize);\
-	RET(osize);if(osize>isize) {free(buf);buf=(byte*)malloc(osize);}\
+	if (!dllc_print())return 0;RET(osize);\
+	if(osize>isize) {free(buf);buf=(byte*)malloc(osize);}\
 	RET_MEM(buf,osize);lograw(": <",buf,osize)
 
 #define ptr_t int32
@@ -80,6 +82,7 @@ API int dllc_init(const char*,int);
 API void dllc_exit();
 API int dllc_open(const char*,int);
 API void dllc_close();
+API int dllc_print();
 API int dllc_write(const char*,int);
 API int dllc_read(char*,int);
 API ptr_t dllc_load(const char*);
