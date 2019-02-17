@@ -115,7 +115,7 @@ static void lograw(const char* prefix, byte* bytes, int size) {
 	dllc_close();dllc_open(0,0);\
 	return 0;}
 
-API int dllc_print() {
+API int dllc_stdio() {
 	static char buf[1024];
 	int len;
 	char ret = 0;
@@ -426,10 +426,27 @@ API int dllc_callf(ptr_t func, const char* proto, ...) {
 
 	lograw(": >",buf,isize);
 	if (!dllc_write((const char*)(buf -= sizeof(isize)),sizeof(isize) + isize)) return 0;
-	if (!dllc_print()) return 0;
+	if (!dllc_stdio()) return 0;
 	if (!dllc_read((char*)&isize,sizeof(isize))) return 0;
 	if (isize < osize || (isize > osize && sizes[*head] != -1)) return 0;
 	osize = isize;
+	if (outc == -1 || (outc == 0 && sizes[*head] == 0)) {
+		free(buf);
+		if (outc == -1) {
+			if (sizes[*head] == -1) {
+				buf = *(byte**)ret;
+				if (!buf) {
+					buf = (byte*)malloc(osize);
+					*((byte**)ret) = buf;
+				}
+			} else
+				buf = (byte*)ret;	
+		} else
+			buf = (byte*)(args[out[0]].p);
+		if (!dllc_read((char*)buf,osize)) return 0;
+		lograw(": <",buf,osize);
+		return 1;
+	}
 	if (osize > isize) { free(buf); buf = (byte*)malloc(osize); }
 	if (!dllc_read((char*)buf,osize)) return 0;
 	lograw(": <",buf,osize);

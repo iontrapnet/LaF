@@ -224,10 +224,15 @@ API byte* dlld_call(byte *args, int32 *len) {
 	if (ret) {
 		bufs[++bufc] = ret; sizes[bufc] = size;
 	}
+	if (bufc == 0 && sizes[0] < 0) {
+		ret = bufs[0];
+		*len = -sizes[0];
+		return ret;
+	}
 	size = 0;
 	for (i = 0; i <= bufc; ++i) size += sizes[i] >= 0 ? sizes[i] : -sizes[i];
 	ret = (byte*)malloc(size); size = 0;
-    for (i = 0; i <= bufc; ++i) {
+	for (i = 0; i <= bufc; ++i) {
 		if (sizes[i] >= 0) {
 			memcpy(ret + size, bufs[i], sizes[i]);
 			size += sizes[i];

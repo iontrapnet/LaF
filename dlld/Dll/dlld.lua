@@ -28,7 +28,7 @@ local d2 = ffi.new('double[?]',size)
 for i=1,size do d1[i] = i end
 print('d1 = {...,'..d1[size-4]..','..d1[size-3]..','..d1[size-2]..','..d1[size-1]..'}')
 tic = time()
-for i=1,150 do
+for i=1,250 do
 dlld.dlld_callf(0,'>d<di=',ffi.cast('int',size),d2,ffi.cast('int',size),d1,ffi.cast('int',size*ffi.sizeof('double')))
 end
 print('d2 = {...,'..d2[size-4]..','..d2[size-3]..','..d2[size-2]..','..d2[size-1]..'}')
@@ -47,7 +47,7 @@ dlld.dlld_callf(2,'is=i',ffi.cast('int',lib[0]),name,func)
 d = ffi.new('double[1]')
 d0 = 0
 tic = time()
-for i=1,30000 do
+for i=1,300000 do
     dlld.dlld_callf(func[0],'d=d',i+3.14,d)
     d0 = d0 + d[0]
 end

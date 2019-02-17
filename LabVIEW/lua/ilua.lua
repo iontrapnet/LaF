@@ -34,9 +34,9 @@ local pop = table.remove
 local append = table.insert
 local concat = table.concat
 local floor = math.floor
-local write = io.write
-local read = io.read
-local loadstring = load
+local write = output or io.write
+local read = input or io.read
+local loadstring = load or loadstring
 
 
 local savef
@@ -334,10 +334,12 @@ end)
 -- Unix readline support, if readline.so is available...
 local rl,readline,saveline
 err = pcall(function()
-    rl = require 'readline'
-    rl.setup()
-    readline = rl.readline
-    saveline = rl.add_history
+    if _VERSION == 'Lua 5.1' then
+        rl = require 'readline'
+        rl.setup()
+        readline = rl.readline
+        saveline = rl.add_history
+    end
 end)
 if not rl then
     readline = function(prompt)

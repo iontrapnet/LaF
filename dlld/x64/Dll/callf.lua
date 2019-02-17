@@ -54,7 +54,12 @@ function callf_ccode(func,proto)
     local k = 1
     while true do
         local c = proto:sub(k,k)
-        if c == '&' or c == '*' then
+        if c == '&' then
+            k = k + 1
+            c = proto:sub(k,k)
+            types[#types+1] = callf_typename[c]..'*'
+        elseif c == '*' then
+            types[#types+1] = callf_typename['i']
             k = k + 1
             c = proto:sub(k,k)
             types[#types+1] = callf_typename[c]..'*'
@@ -83,7 +88,8 @@ function callf_ccode(func,proto)
         k = k + 1
     end
 end
---print(callf_ccode('foo','iD='))
+--print(callf_ccode('foo','i*dBs=i'))
+--os.exit(0)
 
 local decl = {}
 local init = {}
